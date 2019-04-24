@@ -35,6 +35,10 @@ class TestVlan(object):
         tbl._del("Vlan" + vlan + "|" + interface)
         time.sleep(1)
 
+    def check_syslog(self, dvs, marker, err_log, vlan_str, expected_cnt):
+        (exitcode, num) = dvs.runcmd(['sh', '-c', "awk \'/%s/,ENDFILE {print;}\' /var/log/syslog | grep vlanmgrd | grep \"%s\" | grep -i %s | wc -l" % (marker, err_log, vlan_str)])
+        assert num.strip() == str(expected_cnt)
+
     def test_VlanAddRemove(self, dvs, testlog):
         self.setup_db(dvs)
 
@@ -195,12 +199,14 @@ class TestVlan(object):
     ])
     def test_AddVlanWithIncorrectKeyPrefix(self, dvs, testlog, test_input, expected):
         self.setup_db(dvs)
+        marker = dvs.add_log_marker()
+        vlan_prefix = test_input[0]
         vlan = test_input[1]
 
         # create vlan
         tbl = swsscommon.Table(self.cdb, "VLAN")
         fvs = swsscommon.FieldValuePairs([("vlanid", vlan)])
-        tbl.set(test_input[0] + vlan, fvs)
+        tbl.set(vlan_prefix + vlan, fvs)
         time.sleep(1)
 
         # check asic database
@@ -210,9 +216,7 @@ class TestVlan(object):
 
         if len(vlan_entries) == 0:
             # check error log
-            result = dvs.runcmd("cat /var/log/syslog")
-            errPos = result[1].find("Invalid key format. No 'Vlan' prefix: " + test_input[0] + test_input[1])
-            assert errPos != -1
+            self.check_syslog(dvs, marker, "Invalid key format. No 'Vlan' prefix:", vlan_prefix+vlan, 1)
         else:
             #remove vlan
             self.remove_vlan(vlan)
@@ -225,12 +229,14 @@ class TestVlan(object):
     ])
     def test_AddVlanWithIncorrectValueType(self, dvs, testlog, test_input, expected):
         self.setup_db(dvs)
+        marker = dvs.add_log_marker()
+        vlan_prefix = test_input[0]
         vlan = test_input[1]
 
         # create vlan
         tbl = swsscommon.Table(self.cdb, "VLAN")
         fvs = swsscommon.FieldValuePairs([("vlanid", vlan)])
-        tbl.set(test_input[0] + vlan, fvs)
+        tbl.set(vlan_prefix + vlan, fvs)
         time.sleep(1)
 
         # check asic database
@@ -240,9 +246,7 @@ class TestVlan(object):
 
         if len(vlan_entries) == 0:
             # check error log
-            result = dvs.runcmd("cat /var/log/syslog")
-            errPos = result[1].find("Invalid key format. Not a number after 'Vlan' prefix: " + test_input[0] + test_input[1])
-            assert errPos != -1
+            self.check_syslog(dvs, marker, "Invalid key format. Not a number after \'Vlan\' prefix:", vlan_prefix+vlan, 1)
         else:
             #remove vlan
             self.remove_vlan(vlan)
